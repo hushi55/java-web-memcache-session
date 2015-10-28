@@ -70,8 +70,8 @@ public class MemcachedHttpSession implements HttpSession, Serializable {
 			// 空会话不需要序列号，提高性能
 			memcachedClient.set(sessionId, getMaxInactiveInterval(), 0);
 		} else {
-			CASResponse r = this.memcachedClient.cas(sessionId, casId,
-					getMaxInactiveInterval(), sessionValueMap);
+			CASResponse r = this.memcachedClient.cas(sessionId, this.casId,
+					this.maxInactiveInterval, sessionValueMap);
 
 			int loop = RETRY_COUNT; // 尝试 3 次
 
@@ -79,13 +79,15 @@ public class MemcachedHttpSession implements HttpSession, Serializable {
 
 				loop--;
 
-				CASValue<Object> cas = this.memcachedClient
-						.gets(this.sessionId);
-				if (cas != null && cas.getValue() instanceof Map<?, ?>) {
-					sessionValueMap
-							.putAll((Map<String, Object>) cas.getValue());
-					r = this.memcachedClient.cas(sessionId, cas.getCas(),
-							getMaxInactiveInterval(), sessionValueMap);
+				CASValue<Object> cas = this.memcachedClient.gets(this.sessionId);
+				
+				/**
+				 * 使用新值覆盖掉旧值
+				 */
+				Object session = cas.getValue();
+				if (cas != null && session instanceof Map<?, ?>) {
+					((Map<String, Object>) session).putAll(this.sessionValueMap);
+					r = this.memcachedClient.cas(sessionId, cas.getCas(), this.maxInactiveInterval, session);
 					
 
 				}
